@@ -54,6 +54,17 @@ for i=1:n
     end
 end
 
+% parse '-e' for the "eval" mode
+evalmode = false;
+for i=1:n
+    if strcmp(arg_list{i}, '-e')
+        evalmode = true;
+        arg_list(i, :) = [];
+        n = n - 1;
+        break;
+    end
+end
+
 % display usage if needed or asked
 if n == 0 || showhelp
     fprintf(2, 'usage: olambda [-h] [-v] [-p] [-o <output>] [<images>...] <program>\n');
@@ -80,29 +91,48 @@ for i=1:n
     end
 end
 
-% decorate the octave code with @(x, y, ...)
-preprog = '@(';
-for i=1:n
-    if i <= 3
-        c = 'x' + i - 1;
-    else
-        c = 'a' + i - 1 - 3;
+if ~evalmode
+    % decorate the octave code with @(x, y, ...)
+    preprog = '@(';
+    for i=1:n
+        if i <= 3
+            c = 'x' + i - 1;
+        else
+            c = 'a' + i - 1 - 3;
+        end
+        preprog = [preprog char(c)];
+        if i != n
+            preprog = [preprog ','];
+        end
     end
-    preprog = [preprog char(c)];
-    if i != n
-        preprog = [preprog ','];
+    preprog = [preprog ') '];
+    prog = [preprog prog];
+
+    % run the code on the images
+    func = str2func(prog);
+    r = func(imgs{:});
+else
+    preprog = '';
+    for i=1:n
+        if i <= 3
+            c = 'x' + i - 1;
+        else
+            c = 'a' + i - 1 - 3;
+        end
+        preprog = [preprog char(c) '=imgs{' int2str(i) '};'];
+    end
+    prog = [preprog prog ';']; % two ';' is ok
+    eval(prog);
+    if exist('x','var')
+        r = x;
+    else
+        r = '<empty>';
     end
 end
-preprog = [preprog ') '];
-prog = [preprog prog];
-
-% run the code on the images
-func = str2func(prog);
-r = func(imgs{:});
 if verbose
     fprintf(2, 'running ''%s''\n', prog);
-    fprintf(2, 'result: %dx%dx%d %s\n',
-        size(r,1), size(r,2), size(r,3), class(r));
+    fprintf(2, ['result: %d' repmat('x%d', [1, length(size(r))-1]) ' %s\n'],
+        size(r), class(r));
 end
 
 % print or save the result
